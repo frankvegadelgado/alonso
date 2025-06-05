@@ -2,12 +2,12 @@ from pathlib import Path
 
 import setuptools
 
-VERSION = "0.0.4"
+VERSION = "0.0.5"
 
 NAME = "alonso"
 
 INSTALL_REQUIRES = [
-    "mendive>=0.0.4",
+    "mendive>=0.0.5",
 ]
 
 setuptools.setup(

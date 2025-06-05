@@ -104,16 +104,15 @@
       residual edges. This process prevents the ratio from reaching 2,
       leveraging overlap between subgraphs and minimal additions in recursion.
       The algorithm begins by cleaning the graph (removing self-loops and
-      isolates in $\mathcal{O}(n + m)$), partitions edges in $\mathcal{O}(m
-      \cdot (m \cdot \Delta \cdot C + C^2))$ where $\Delta$ is the maximum
-      degree and $C$ is the number of claws, computes vertex covers in
-      $\mathcal{O}(n^3)$ per subgraph (total $\mathcal{O}(n^3)$), merges covers
-      in $\mathcal{O}(n)$, and constructs the residual graph in
-      $\mathcal{O}(m)$. The recursive nature, with a worst-case depth of
-      $\mathcal{O}(m)$ if each step covers one edge, yields a total runtime of
-      $\mathcal{O}(n^3 m)$, dominated by the cubic cost across levels. For
-      sparse graphs ($m = \mathcal{O}(n)$), this simplifies to
-      $\mathcal{O}(n^4)$.
+      isolates in $O(n + m)$), checking for claw-free in $O(m \cdot \Delta)$,
+      partitions edges in $O(m \cdot (m \cdot \Delta \cdot C + C^2))$ where
+      $\Delta$ is the maximum degree and $C$ is the number of claws, computes
+      vertex covers in $O(n^3)$ per subgraph (total $O(n^3)$), merges covers in
+      $O(n \cdot \log n)$, and constructs the residual graph in $O(m)$. The
+      recursive nature, with a worst-case depth of $O(m)$ if each step covers
+      one edge, yields a total runtime of $O(n^3 m)$, dominated by the cubic
+      cost across levels. For sparse graphs ($m = O(n)$), this simplifies to
+      $O(n^4)$.
     </p>
     <hr />
     <h2>Problem Statement</h2>
