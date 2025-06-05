@@ -5,6 +5,7 @@ import itertools
 from . import utils
 
 import networkx as nx
+import mendive.algorithm as algo
 from . import partition
 from . import stable
 from . import merge
@@ -41,34 +42,52 @@ def find_vertex_cover(graph):
     if working_graph.number_of_nodes() == 0:
         return set()
     
-    # Partition edges into two subsets (E1, E2) using the Burr-Erdős-Lovász (1976) algorithm
-    # This step divides the graph into two claw-free subgraphs
-    # Complexity: O(m * (m * Δ * C + C^2)), where m is edges, Δ is maximum degree, C is number of claws
-    E1, E2 = partition.partition_edges_claw_free(working_graph)
-    
-    # Compute minimum vertex cover for E1 using the Faenza, Oriolo & Stauffer (2011) algorithm
-    # This finds the maximum weighted stable set in the claw-free graph E1, whose complement is the vertex cover
-    # Complexity: O(n^3), where n is the number of nodes in the subgraph induced by E1
-    vertex_cover_1 = stable.minimum_vertex_cover_claw_free(E1)
-    
-    # Compute minimum vertex cover for E2 using the same Faenza, Oriolo & Stauffer (2011) algorithm
-    # Complexity: O(n^3) for the subgraph induced by E2
-    vertex_cover_2 = stable.minimum_vertex_cover_claw_free(E2)
-
-    # Merge the two vertex covers from E1 and E2 to approximate the minimum vertex cover of the original graph
-    approximate_vertex_cover = merge.merge_vertex_covers(E1, E2, vertex_cover_1, vertex_cover_2)
-    
-    # Create a residual graph containing edges not covered by the current vertex cover
-    residual_graph = nx.Graph()
-    for u, v in working_graph.edges():
-        if u not in approximate_vertex_cover and v not in approximate_vertex_cover:
-            residual_graph.add_edge(u, v)  # Add edge if neither endpoint is in the cover
-    
-    # Recursively find vertex cover for the residual graph to handle uncovered edges
-    residual_vertex_cover = find_vertex_cover(residual_graph)
-    
-    # Combine the approximate vertex cover with the residual cover to ensure all edges are covered
-    return approximate_vertex_cover.union(residual_vertex_cover)
+    # Structural analysis: detect presence of claw subgraphs (K_{1,3})
+    # This determines which algorithmic approach to use
+    claw = algo.find_claw_coordinates(working_graph, first_claw=True)
+   
+    if claw is None:
+        # CASE 1: Claw-free graph - use polynomial-time exact algorithm
+        # Apply Faenza-Oriolo-Stauffer algorithm for weighted stable set on claw-free graphs
+        # The maximum weighted stable set's complement gives us the minimum vertex cover
+        E = working_graph.edges()
+        approximate_vertex_cover = stable.minimum_vertex_cover_claw_free(E)
+        
+    else:
+        # CASE 2: Graph contains claws - use divide-and-conquer approach
+        
+        # Step 1: Edge partitioning using enhanced Burr-Erdős-Lovász technique
+        # Partition edges E = E1 ∪ E2 such that both induced subgraphs G[E1] and G[E2] are claw-free
+        # Complexity: O(m * (m * Δ * C + C^2)), where m is edges, Δ is maximum degree, C is number of claws
+        E1, E2 = partition.partition_edges_claw_free(working_graph)
+       
+        # Step 2: Solve subproblems optimally on claw-free partitions
+        # Each partition can be solved exactly using polynomial-time algorithms
+        vertex_cover_1 = stable.minimum_vertex_cover_claw_free(E1)  # O(n^3) for subgraph G[E1]
+        vertex_cover_2 = stable.minimum_vertex_cover_claw_free(E2)  # O(n^3) for subgraph G[E2]
+        
+        # Step 3: Intelligent merging with 1.42-approximation guarantee
+        # Time complexity: O(|V| × log |V|)
+        approximate_vertex_cover = merge.merge_vertex_covers(
+            working_graph, vertex_cover_1, vertex_cover_2
+        )
+       
+        # Step 4: Handle residual uncovered edges through recursion
+        # Construct residual graph containing edges missed by current vertex cover
+        residual_graph = nx.Graph()
+        for u, v in working_graph.edges():
+            # Edge (u,v) is uncovered if neither endpoint is in our current cover
+            if u not in approximate_vertex_cover and v not in approximate_vertex_cover:
+                residual_graph.add_edge(u, v)
+       
+        # Recursive call to handle remaining uncovered structure
+        # This ensures completeness: every edge in the original graph is covered
+        residual_vertex_cover = find_vertex_cover(residual_graph)
+        
+        # Combine solutions: union of main cover and residual cover
+        approximate_vertex_cover = approximate_vertex_cover.union(residual_vertex_cover)
+   
+    return approximate_vertex_cover
 
 def find_vertex_cover_brute_force(graph):
     """

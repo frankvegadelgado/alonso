@@ -2,7 +2,7 @@ import networkx as nx
 from typing import Tuple, Set, List
 from collections import defaultdict
 import itertools
-import mendive.algorithm as claws
+import mendive.algorithm as algo
 
 class BurrErdosLovaszPartitioner:
     """
@@ -64,7 +64,7 @@ class BurrErdosLovaszPartitioner:
         G = nx.Graph()
         G.add_edges_from(edge_set)
         
-        claw = claws.find_claw_coordinates(G, first_claw=True)
+        claw = algo.find_claw_coordinates(G, first_claw=True)
         if claw is None:
             return True
         else:
@@ -83,7 +83,7 @@ class BurrErdosLovaszPartitioner:
         k_star_count = 0
         
         if self.k == 3:
-          all_claws = claws.find_claw_coordinates(G, first_claw=False)
+          all_claws = algo.find_claw_coordinates(G, first_claw=False)
           if all_claws is not None:
             k_star_count = len(all_claws)
         else:
@@ -161,7 +161,7 @@ class BurrErdosLovaszPartitioner:
         k_stars = []
         
         if self.k == 3:
-          all_claws = claws.find_claw_coordinates(G, first_claw=False)
+          all_claws = algo.find_claw_coordinates(G, first_claw=False)
           if all_claws is not None:
             for subset in all_claws:
                 subgraph = G.subgraph(subset)

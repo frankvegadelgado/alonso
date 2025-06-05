@@ -1,10 +1,9 @@
-def merge_vertex_covers(E1, E2, vertex_cover_1, vertex_cover_2):
+def merge_vertex_covers(G, vertex_cover_1, vertex_cover_2):
     """
     Merge two vertex covers from edge partitions to get minimum vertex cover of G.
     
     Args:
         G: Graph represented as adjacency list/set of edges
-        E1, E2: Two partitions of edges E
         vertex_cover_1: Vertex cover for subgraph induced by E1
         vertex_cover_2: Vertex cover for subgraph induced by E2
     
@@ -12,15 +11,15 @@ def merge_vertex_covers(E1, E2, vertex_cover_1, vertex_cover_2):
         Merged vertex cover for the entire graph G
     """
     # All edges in the graph
-    all_edges = E1.union(E2)
+    all_edges = G.edges()
     
     # Initialize merge process
     merged_cover = set()
     covered_edges = set()
     
     # Convert vertex covers to lists for merge-sort-like processing
-    candidates_1 = list(vertex_cover_1)
-    candidates_2 = list(vertex_cover_2)
+    candidates_1 = sorted(list(vertex_cover_1), key=lambda x: G.degree(x), reverse=True)
+    candidates_2 = sorted(list(vertex_cover_2), key=lambda x: G.degree(x), reverse=True)
     
     i, j = 0, 0
     
