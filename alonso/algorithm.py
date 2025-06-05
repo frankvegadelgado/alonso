@@ -24,54 +24,52 @@ def find_vertex_cover(graph):
     # Validate that the input is a valid undirected NetworkX graph
     if not isinstance(graph, nx.Graph):
         raise ValueError("Input must be an undirected NetworkX Graph.")
-    
+
     # Handle trivial cases: return empty set for graphs with no nodes or no edges
     if graph.number_of_nodes() == 0 or graph.number_of_edges() == 0:
         return set()  # No vertices or edges mean no cover is needed
-    
+
     # Create a working copy to avoid modifying the original graph
     working_graph = graph.copy()
-    
+
     # Remove self-loops as they are irrelevant for vertex cover computation
     working_graph.remove_edges_from(list(nx.selfloop_edges(working_graph)))
-    
+
     # Remove isolated nodes (degree 0) since they don't contribute to the vertex cover
     working_graph.remove_nodes_from(list(nx.isolates(working_graph)))
-    
+
     # Return empty set if the cleaned graph has no nodes after removals
     if working_graph.number_of_nodes() == 0:
         return set()
-    
-    # Structural analysis: detect presence of claw subgraphs (K_{1,3})
+
+    # Structural analysis: detect presence of claw subgraphs
     # This determines which algorithmic approach to use
     claw = algo.find_claw_coordinates(working_graph, first_claw=True)
-   
+
     if claw is None:
         # CASE 1: Claw-free graph - use polynomial-time exact algorithm
         # Apply Faenza-Oriolo-Stauffer algorithm for weighted stable set on claw-free graphs
         # The maximum weighted stable set's complement gives us the minimum vertex cover
         E = working_graph.edges()
         approximate_vertex_cover = stable.minimum_vertex_cover_claw_free(E)
-        
+
     else:
         # CASE 2: Graph contains claws - use divide-and-conquer approach
-        
-        # Step 1: Edge partitioning using enhanced Burr-Erdős-Lovász technique
-        # Partition edges E = E1 ∪ E2 such that both induced subgraphs G[E1] and G[E2] are claw-free
-        # Complexity: O(m * (m * Δ * C + C^2)), where m is edges, Δ is maximum degree, C is number of claws
+
+        # Step 1: Edge partitioning using enhanced Burr-Erdos-Lovasz technique
+        # Partition edges E = E1 union E2 such that both induced subgraphs G[E1] and G[E2] are claw-free
         E1, E2 = partition.partition_edges_claw_free(working_graph)
-       
+
         # Step 2: Solve subproblems optimally on claw-free partitions
         # Each partition can be solved exactly using polynomial-time algorithms
-        vertex_cover_1 = stable.minimum_vertex_cover_claw_free(E1)  # O(n^3) for subgraph G[E1]
-        vertex_cover_2 = stable.minimum_vertex_cover_claw_free(E2)  # O(n^3) for subgraph G[E2]
-        
-        # Step 3: Intelligent merging with 1.42-approximation guarantee
-        # Time complexity: O(|V| × log |V|)
+        vertex_cover_1 = stable.minimum_vertex_cover_claw_free(E1)
+        vertex_cover_2 = stable.minimum_vertex_cover_claw_free(E2)
+
+        # Step 3: Intelligent merging with 1.9-approximation guarantee
         approximate_vertex_cover = merge.merge_vertex_covers(
             working_graph, vertex_cover_1, vertex_cover_2
         )
-       
+
         # Step 4: Handle residual uncovered edges through recursion
         # Construct residual graph containing edges missed by current vertex cover
         residual_graph = nx.Graph()
@@ -79,14 +77,14 @@ def find_vertex_cover(graph):
             # Edge (u,v) is uncovered if neither endpoint is in our current cover
             if u not in approximate_vertex_cover and v not in approximate_vertex_cover:
                 residual_graph.add_edge(u, v)
-       
+
         # Recursive call to handle remaining uncovered structure
         # This ensures completeness: every edge in the original graph is covered
         residual_vertex_cover = find_vertex_cover(residual_graph)
-        
+
         # Combine solutions: union of main cover and residual cover
         approximate_vertex_cover = approximate_vertex_cover.union(residual_vertex_cover)
-   
+
     return approximate_vertex_cover
 
 def find_vertex_cover_brute_force(graph):
