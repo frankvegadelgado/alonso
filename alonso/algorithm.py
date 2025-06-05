@@ -12,7 +12,7 @@ from . import merge
 
 def find_vertex_cover(graph):
     """
-    Compute an approximate minimum vertex cover set for an undirected graph by transforming it into a chordal graph.
+    Compute an approximate minimum vertex cover set for an undirected graph.
 
     Args:
         graph (nx.Graph): A NetworkX Graph object representing the input graph.
