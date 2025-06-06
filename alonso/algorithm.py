@@ -58,8 +58,9 @@ def find_vertex_cover(graph):
 
         # Step 1: Edge partitioning using enhanced Burr-Erdos-Lovasz technique
         # Partition edges E = E1 union E2 such that both induced subgraphs G[E1] and G[E2] are claw-free
-        E1, E2 = partition.partition_edges_claw_free(working_graph)
-
+        partitioner = partition.ClawFreePartitioner(working_graph)
+        E1, E2 = partitioner.partition_edges()
+        
         # Step 2: Solve subproblems optimally on claw-free partitions
         # Each partition can be solved exactly using polynomial-time algorithms
         vertex_cover_1 = stable.minimum_vertex_cover_claw_free(E1)

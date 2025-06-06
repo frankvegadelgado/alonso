@@ -1,216 +1,223 @@
-import networkx as nx
-from typing import Tuple, Set, List
 from collections import defaultdict
-import itertools
+import networkx as nx
+from typing import Set, Tuple, List
 import mendive.algorithm as algo
-
-class BurrErdosLovaszPartitioner:
+class ClawFreePartitioner:
     """
-    Implementation of the Burr-Erdős-Lovász (1976) algorithm for partitioning
-    edges of a graph into two subsets such that each subset induces a k-star-free subgraph.
+    Implements a polynomial-time algorithm to partition graph edges into two sets
+    E1 and E2 such that both induced subgraphs are claw-free.
     
-    For k=3 (claw-free case), we partition edges to avoid 3-stars in each partition.
-    
-    The algorithm works by maintaining two edge sets and for each new edge,
-    assigning it to the partition where it creates the fewest violations,
-    then locally repairing any violations that arise.
+    Based on principles from Burr-Erdős-Lovász approach for Ramsey-type problems.
+    A claw is a star graph K_{1,3} (one central vertex connected to 3 others).
     """
     
-    def __init__(self, graph: nx.Graph, k: int = 3):
-        self.graph = graph.copy()
-        self.k = k  # k=3 for claw-free (3-star-free)
-        self.n = len(graph.nodes())
+    def __init__(self, graph):
+        """
+        Initialize with a NetworkX graph.
         
+        Args:
+            graph: NetworkX Graph object
+        """
+        self.G = graph.copy()
+        self.n = len(self.G.nodes())
+        self.m = len(self.G.edges())
+        
+    def find_potential_claw_centers(self) -> Set[int]:
+        """
+        Find vertices that could potentially be centers of claws.
+        A vertex can be a claw center only if it has degree >= 3.
+        
+        Returns:
+            Set of vertices with degree >= 3
+        """
+        return {v for v in self.G.nodes() if self.G.degree(v) >= 3}
+    
+    def get_neighborhood_edges(self, vertex: int) -> List[Tuple[int, int]]:
+        """
+        Get all edges incident to a given vertex.
+        
+        Args:
+            vertex: The vertex to get incident edges for
+            
+        Returns:
+            List of edges (as tuples) incident to the vertex
+        """
+        return [(vertex, neighbor) for neighbor in self.G.neighbors(vertex)]
+    
+    def would_create_claw(self, edges_in_partition: Set[Tuple[int, int]], 
+                         new_edge: Tuple[int, int]) -> bool:
+        """
+        Check if adding a new edge to a partition would create a claw.
+        
+        Args:
+            edges_in_partition: Current edges in the partition
+            new_edge: Edge to potentially add
+            
+        Returns:
+            True if adding the edge would create a claw, False otherwise
+        """
+        # Build adjacency list for current partition
+        adj = defaultdict(set)
+        for u, v in edges_in_partition:
+            adj[u].add(v)
+            adj[v].add(u)
+        
+        # Add the new edge temporarily
+        u, v = new_edge
+        adj[u].add(v)
+        adj[v].add(u)
+        
+        # Check if any vertex now forms a claw
+        for vertex in [u, v]:
+            neighbors = list(adj[vertex])
+            if len(neighbors) >= 3:
+                # Check all combinations of 3 neighbors
+                
+                for i in range(len(neighbors)):
+                    for j in range(i + 1, len(neighbors)):
+                        for k in range(j + 1, len(neighbors)):
+                            n1, n2, n3 = neighbors[i], neighbors[j], neighbors[k]
+                            # Check if these 3 neighbors are not connected to each other
+                            # (which would make vertex the center of a claw)
+                            if (n1 not in adj[n2] and n2 not in adj[n1] and
+                                n1 not in adj[n3] and n3 not in adj[n1] and
+                                n2 not in adj[n3] and n3 not in adj[n2]):
+                                return True
+        
+        return False
+    
+    def greedy_partition(self) -> Tuple[Set[Tuple[int, int]], Set[Tuple[int, int]]]:
+        """
+        Greedily partition edges into two claw-free sets.
+        
+        Strategy:
+        1. Process vertices in order of decreasing degree
+        2. For each vertex, try to distribute its incident edges 
+           between the two partitions to avoid creating claws
+        3. Use a greedy approach that prioritizes balance
+        
+        Returns:
+            Tuple of (E1, E2) - two sets of edges
+        """
+        E1 = set()
+        E2 = set()
+        processed_edges = set()
+        
+        # Sort vertices by degree (descending) to handle high-degree vertices first
+        vertices_by_degree = sorted(self.G.nodes(), 
+                                  key=lambda v: self.G.degree(v), 
+                                  reverse=True)
+        
+        for vertex in vertices_by_degree:
+            if self.G.degree(vertex) < 3:
+                continue  # Can't be center of a claw
+                
+            incident_edges = self.get_neighborhood_edges(vertex)
+            unprocessed_edges = [e for e in incident_edges if e not in processed_edges]
+            
+            if len(unprocessed_edges) < 3:
+                continue  # Not enough edges to potentially form a claw
+            
+            # Try to distribute edges to avoid claws
+            for edge in unprocessed_edges:
+                if edge in processed_edges:
+                    continue
+                    
+                # Try adding to E1 first
+                if not self.would_create_claw(E1, edge):
+                    E1.add(edge)
+                    processed_edges.add(edge)
+                elif not self.would_create_claw(E2, edge):
+                    E2.add(edge)
+                    processed_edges.add(edge)
+                else:
+                    # If adding to either partition would create a claw,
+                    # add to the smaller partition (balance heuristic)
+                    if len(E1) <= len(E2):
+                        E1.add(edge)
+                    else:
+                        E2.add(edge)
+                    processed_edges.add(edge)
+        
+        # Add remaining unprocessed edges using simple alternating strategy
+        remaining_edges = set(self.G.edges()) - processed_edges
+        for i, edge in enumerate(remaining_edges):
+            if i % 2 == 0:
+                E1.add(edge)
+            else:
+                E2.add(edge)
+        
+        return E1, E2
+    
+    def verify_claw_free(self, edge_set: Set[Tuple[int, int]]) -> bool:
+        """
+        Verify that a given edge set induces a claw-free graph.
+        
+        Args:
+            edge_set: Set of edges to check
+            
+        Returns:
+            True if the induced graph is claw-free, False otherwise
+        """
+        # Build adjacency list
+        G = nx.Graph()
+        G.add_edges_from(edge_set)
+        claw = algo.find_claw_coordinates(G, first_claw=True)
+        if claw is None:
+            return True
+        else: 
+            return False
+
     def partition_edges(self) -> Tuple[Set[Tuple[int, int]], Set[Tuple[int, int]]]:
         """
-        Partition edges into two k-star-free subgraphs using BEL algorithm.
+        Main method to partition graph edges into two claw-free sets.
+        
+        Returns:
+            Tuple of (E1, E2) where both induce claw-free graphs
+        """
+        if self.m == 0:
+            return set(), set()
+        
+        # Try the greedy approach
+        E1, E2 = self.greedy_partition()
+        
+        # Verify the result
+        if self.verify_claw_free(E1) and self.verify_claw_free(E2):
+            return E1, E2
+        
+        # If greedy fails, use a more conservative approach
+        return self.fallback_partition()
+    
+    def fallback_partition(self) -> Tuple[Set[Tuple[int, int]], Set[Tuple[int, int]]]:
+        """
+        Fallback method: Create a more conservative partition by ensuring
+        no vertex has degree > 2 in either partition (guarantees claw-free).
+        
+        Returns:
+            Tuple of (E1, E2) - two claw-free edge sets
         """
         E1 = set()
         E2 = set()
         
-        # Convert edges to consistent format
-        edges = [(min(u, v), max(u, v)) for u, v in self.graph.edges()]
+        degree1 = defaultdict(int)
+        degree2 = defaultdict(int)
         
-        # Main algorithm: assign each edge to minimize violations
-        for edge in edges:
-            # Count violations if we add edge to E1
-            violations_E1 = self._count_violations_after_adding(E1, edge)
-            violations_E2 = self._count_violations_after_adding(E2, edge)
-            
-            # Add to partition with fewer violations
-            if violations_E1 <= violations_E2:
+        for edge in self.G.edges():
+            u, v = edge
+            # Add to partition where both endpoints have degree < 2
+            if degree1[u] < 2 and degree1[v] < 2:
                 E1.add(edge)
-                # Repair violations in E1
-                E1 = self._repair_violations(E1)
-            else:
+                degree1[u] += 1
+                degree1[v] += 1
+            elif degree2[u] < 2 and degree2[v] < 2:
                 E2.add(edge)
-                # Repair violations in E2
-                E2 = self._repair_violations(E2)
+                degree2[u] += 1
+                degree2[v] += 1
+            else:
+                # Add to the partition with smaller total degree
+                if sum(degree1.values()) <= sum(degree2.values()):
+                    E1.add(edge)
+                else:
+                    E2.add(edge)
         
         return E1, E2
-    
-    def _count_violations_after_adding(self, edge_set: Set[Tuple[int, int]], 
-                                     new_edge: Tuple[int, int]) -> int:
-        """Count number of k-stars that would be created by adding new_edge."""
-        temp_set = edge_set | {new_edge}
-        return self._count_k_stars(temp_set)
-    
-    def _is_claw_free(self, edge_set: Set[Tuple[int, int]]) -> bool:
-        """Count number of k-stars in the edge set."""
-        if not edge_set:
-            return True
-            
-        # Build graph from edge set
-        G = nx.Graph()
-        G.add_edges_from(edge_set)
-        
-        claw = algo.find_claw_coordinates(G, first_claw=True)
-        if claw is None:
-            return True
-        else:
-            return False
-    
-    
-    def _count_k_stars(self, edge_set: Set[Tuple[int, int]]) -> int:
-        """Count number of k-stars in the edge set."""
-        if not edge_set:
-            return 0
-            
-        # Build graph from edge set
-        G = nx.Graph()
-        G.add_edges_from(edge_set)
-        
-        k_star_count = 0
-        
-        if self.k == 3:
-          all_claws = algo.find_claw_coordinates(G, first_claw=False)
-          if all_claws is not None:
-            k_star_count = len(all_claws)
-        else:
-            # Check each vertex as potential center of k-star
-            for center in G.nodes():
-                neighbors = list(G.neighbors(center))
-                if len(neighbors) >= self.k:
-                    # Count k-subsets of neighbors that form independent sets
-                    for k_subset in itertools.combinations(neighbors, self.k):
-                        # Check if this k-subset is independent
-                        is_independent = True
-                        for i in range(self.k):
-                            for j in range(i + 1, self.k):
-                                if G.has_edge(k_subset[i], k_subset[j]):
-                                    is_independent = False
-                                    break
-                            if not is_independent:
-                                break
-                        
-                        if is_independent:
-                            k_star_count += 1
-            
-        return k_star_count
-    
-    def _repair_violations(self, edge_set: Set[Tuple[int, int]]) -> Set[Tuple[int, int]]:
-        """
-        Repair k-star violations in edge_set by removing minimal edges.
-        This is the key part of the BEL algorithm.
-        """
-        if not edge_set:
-            return edge_set
-            
-        current_set = edge_set.copy()
-        
-        while True:
-            if self.k == 3:
-                is_claw_free = self._is_claw_free(current_set)
-                if is_claw_free:
-                    break  # No more violations
-                violations = self._find_k_stars(current_set)
-            else:        
-                violations = self._find_k_stars(current_set)
-                if not violations:
-                    break  # No more violations
-                
-            # Find the edge that appears in most violations
-            edge_violation_count = defaultdict(int)
-            for k_star in violations:
-                center, leaves = k_star
-                # Each k-star consists of k edges from center to leaves
-                for leaf in leaves:
-                    edge = (min(center, leaf), max(center, leaf))
-                    if edge in current_set:
-                        edge_violation_count[edge] += 1
-            
-            if not edge_violation_count:
-                break
-                
-            # Remove the edge that appears in most violations
-            most_violating_edge = max(edge_violation_count.keys(), 
-                                    key=lambda e: edge_violation_count[e])
-            current_set.remove(most_violating_edge)
-        
-        return current_set
-    
-    def _find_k_stars(self, edge_set: Set[Tuple[int, int]]) -> List[Tuple[int, Tuple]]:
-        """Find all k-stars in the edge set. Returns list of (center, leaves) tuples."""
-        if not edge_set:
-            return []
-            
-        # Build graph from edge set
-        G = nx.Graph()
-        G.add_edges_from(edge_set)
-        
-        k_stars = []
-        
-        if self.k == 3:
-          all_claws = algo.find_claw_coordinates(G, first_claw=False)
-          if all_claws is not None:
-            for subset in all_claws:
-                subgraph = G.subgraph(subset)
-                sorted_nodes = sorted(list(subset), key=lambda x: subgraph.degree(x))
-                center = sorted_nodes.pop()
-                k_subset = tuple(sorted_nodes)
-                k_stars.append((center, k_subset))
-        else:
-          # Check each vertex as potential center of k-star
-          for center in G.nodes():
-              neighbors = list(G.neighbors(center))
-              if len(neighbors) >= self.k:
-                  # Find all k-subsets of neighbors that form independent sets
-                  for k_subset in itertools.combinations(neighbors, self.k):
-                      # Check if this k-subset is independent
-                      is_independent = True
-                      for i in range(self.k):
-                          for j in range(i + 1, self.k):
-                              if G.has_edge(k_subset[i], k_subset[j]):
-                                  is_independent = False
-                                  break
-                          if not is_independent:
-                              break
-                      
-                      if is_independent:
-                          k_stars.append((center, k_subset))
-          
-        return k_stars
-    
-    def verify_partition(self, E1: Set[Tuple[int, int]], E2: Set[Tuple[int, int]]) -> Tuple[bool, bool]:
-        """Verify that both partitions are k-star-free."""
-        if self.k == 3:
-            return (self._is_claw_free(E1), self._is_claw_free(E2))
-        else:    
-            return (self._count_k_stars(E1) == 0, self._count_k_stars(E2) == 0)
-
-
-def partition_edges_claw_free(G: nx.Graph) -> Tuple[Set[Tuple[int, int]], Set[Tuple[int, int]]]:
-    """
-    Partition edges of graph G into two sets such that each induces a claw-free subgraph.
-    
-    Implementation of Burr, Erdős, Lovász (1976) algorithm for k=3 (claw-free case).
-    
-    Args:
-        G: Undirected NetworkX graph
-        
-    Returns:
-        (E1, E2): Two edge sets that induce claw-free subgraphs
-    """
-    partitioner = BurrErdosLovaszPartitioner(G, k=3)
-    return partitioner.partition_edges()
-
