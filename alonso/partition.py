@@ -1,7 +1,8 @@
 from collections import defaultdict
 import networkx as nx
 from typing import Set, Tuple, List
-import mendive.algorithm as algo
+import mendive.algorithm as claws
+import aegypti.algorithm as triangles
 class ClawFreePartitioner:
     """
     Implements a polynomial-time algorithm to partition graph edges into two sets
@@ -57,32 +58,23 @@ class ClawFreePartitioner:
             True if adding the edge would create a claw, False otherwise
         """
         # Build adjacency list for current partition
-        adj = defaultdict(set)
+        G = nx.Graph()
         for u, v in edges_in_partition:
-            adj[u].add(v)
-            adj[v].add(u)
+            G.add_edge(u, v)
         
         # Add the new edge temporarily
         u, v = new_edge
-        adj[u].add(v)
-        adj[v].add(u)
-        
+        G.add_edge(u, v)
+        H = nx.complement(G)
         # Check if any vertex now forms a claw
         for vertex in [u, v]:
-            neighbors = list(adj[vertex])
+            neighbors = list(G.neighbors(vertex))
             if len(neighbors) >= 3:
                 # Check all combinations of 3 neighbors
-                
-                for i in range(len(neighbors)):
-                    for j in range(i + 1, len(neighbors)):
-                        for k in range(j + 1, len(neighbors)):
-                            n1, n2, n3 = neighbors[i], neighbors[j], neighbors[k]
-                            # Check if these 3 neighbors are not connected to each other
-                            # (which would make vertex the center of a claw)
-                            if (n1 not in adj[n2] and n2 not in adj[n1] and
-                                n1 not in adj[n3] and n3 not in adj[n1] and
-                                n2 not in adj[n3] and n3 not in adj[n2]):
-                                return True
+                subgraph = H.subgraph(neighbors)
+                triangle = triangles.find_triangle_coordinates(subgraph, first_triangle=True)
+                if triangle is not None:
+                    return True
         
         return False
     
@@ -162,7 +154,7 @@ class ClawFreePartitioner:
         # Build adjacency list
         G = nx.Graph()
         G.add_edges_from(edge_set)
-        claw = algo.find_claw_coordinates(G, first_claw=True)
+        claw = claws.find_claw_coordinates(G, first_claw=True)
         if claw is None:
             return True
         else: 
