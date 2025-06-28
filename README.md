@@ -79,7 +79,7 @@ Vertex Cover Found `3, 4, 5`: Nodes `3`, `4`, and `5` constitute an optimal solu
 
 ## Prerequisites
 
-- Python ≥ 3.10
+- Python ≥ 3.12
 
 ## Installation
 
